@@ -1,52 +1,77 @@
 // ============================================================
-// CONTROLES — teclado, mouse e câmera
+// CONTROLES — teclado, mouse, toque e câmera
 // ============================================================
-// Este arquivo cuida de três coisas:
-//   1. Ler o teclado e guardar quais teclas estão pressionadas.
-//   2. Ler o mouse e girar a câmera quando o botão está pressionado.
-//   3. Calcular a posição da câmera a cada quadro, atrás da folha.
+// Este arquivo cuida de:
+//   1. Ler o teclado (computador).
+//   2. Ler o mouse (computador): girar a câmera.
+//   3. Ler o toque (celular): andar, girar a câmera, planar.
+//   4. Calcular a posição da câmera a cada quadro.
 //
-// NÃO decide o movimento do avatar. Só fornece as teclas
-// pressionadas para quem decide (o game.js).
+// A lógica de toque só é ativada se o navegador detectar que
+// o dispositivo suporta toque.
 // ============================================================
 
 import * as THREE from 'three';
 
 // ============================================================
+// DETECÇÃO DE TOQUE
+// ============================================================
+
+const temToque = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+console.log('Dispositivo com toque?', temToque);
+
+// ============================================================
 // ESTADO INTERNO
 // ============================================================
-// Guardamos o estado do mouse e da câmera aqui, para não
-// poluir o game.js.
 
 const estado = {
-  teclas: {},              // quais teclas estão pressionadas
+  // Teclado
+  teclas: {},
+
+  // Mouse (computador)
   mousePressionado: false,
   mouseXAnterior: 0,
   mouseYAnterior: 0,
+
+  // Toque (celular)
+  toqueAtivo: false,
+  toqueId: null,
+  toqueXInicial: 0,
+  toqueYInicial: 0,
+  toqueXAtual: 0,
+  toqueYAtual: 0,
+  modoToque: 'parado',    // 'parado', 'andando', 'olhando'
+
+  // Planar (duplo toque)
+  planarAtivo: false,
+  ultimoToqueTempo: 0,
+
+  // Câmera
   tempoSemMexerMouse: 0,
-  yawCamera: 0,            // giro horizontal da câmera
-  pitchCamera: -0.2,       // inclinação vertical
+  yawCamera: 0,
+  pitchCamera: -0.2,
   distanciaCamera: 9,
   alturaCamera: 3.2
 };
 
+// Distância em pixels a partir da qual o toque vira "olhar"
+const LIMITE_OLHAR = 15;
+
+// Tempo máximo entre dois toques para serem considerados "duplo toque"
+const TEMPO_DUPLO_TOQUE = 300;
+
 // ============================================================
 // CONFIGURAÇÃO
 // ============================================================
-// Chama esta função UMA VEZ no início, passando o canvas
-// onde os eventos vão ser capturados.
 
 export function configurarControles(canvas) {
   // ---------- TECLADO ----------
   window.addEventListener('keydown', (e) => {
     estado.teclas[e.code] = true;
-
-    // Impede que as setas e o espaço rolem a página
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) {
       e.preventDefault();
     }
   });
-
   window.addEventListener('keyup', (e) => {
     estado.teclas[e.code] = false;
   });
@@ -57,11 +82,9 @@ export function configurarControles(canvas) {
     estado.mouseXAnterior = e.clientX;
     estado.mouseYAnterior = e.clientY;
   });
-
   window.addEventListener('mouseup', () => {
     estado.mousePressionado = false;
   });
-
   window.addEventListener('mousemove', (e) => {
     if (!estado.mousePressionado) return;
 
@@ -73,17 +96,90 @@ export function configurarControles(canvas) {
     estado.yawCamera -= dx * 0.005;
     estado.pitchCamera -= dy * 0.005;
     estado.pitchCamera = Math.max(-1.1, Math.min(0.35, estado.pitchCamera));
-
-    // Zera o contador: o usuário está mexendo no mouse
     estado.tempoSemMexerMouse = 0;
   });
+
+  // ---------- TOQUE ----------
+  if (temToque) {
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+
+      // Detecta toque duplo
+      const agora = performance.now();
+      const intervalo = agora - estado.ultimoToqueTempo;
+      estado.ultimoToqueTempo = agora;
+
+      if (intervalo < TEMPO_DUPLO_TOQUE) {
+        // É um duplo toque: entra em modo planar
+        estado.planarAtivo = true;
+        return;   // não usa esse toque para andar
+      }
+
+      // Toque simples: modo andar
+      estado.toqueAtivo = true;
+      estado.toqueId = t.identifier;
+      estado.toqueXInicial = t.clientX;
+      estado.toqueYInicial = t.clientY;
+      estado.toqueXAtual = t.clientX;
+      estado.toqueYAtual = t.clientY;
+      estado.modoToque = 'andando';
+      estado.mouseXAnterior = t.clientX;
+      estado.mouseYAnterior = t.clientY;
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (t.identifier !== estado.toqueId) continue;
+
+        estado.toqueXAtual = t.clientX;
+        estado.toqueYAtual = t.clientY;
+
+        const dx = estado.toqueXAtual - estado.toqueXInicial;
+        const dy = estado.toqueYAtual - estado.toqueYInicial;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > LIMITE_OLHAR) {
+          // Modo olhar: gira a câmera
+          estado.modoToque = 'olhando';
+
+          const dxMov = t.clientX - estado.mouseXAnterior;
+          const dyMov = t.clientY - estado.mouseYAnterior;
+          estado.mouseXAnterior = t.clientX;
+          estado.mouseYAnterior = t.clientY;
+
+          estado.yawCamera -= dxMov * 0.008;
+          estado.pitchCamera -= dyMov * 0.008;
+          estado.pitchCamera = Math.max(-1.1, Math.min(0.35, estado.pitchCamera));
+          estado.tempoSemMexerMouse = 0;
+        }
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (t.identifier !== estado.toqueId) continue;
+        estado.toqueAtivo = false;
+        estado.toqueId = null;
+        estado.modoToque = 'parado';
+      }
+      estado.planarAtivo = false;
+    }, { passive: false });
+
+    canvas.addEventListener('touchcancel', () => {
+      estado.toqueAtivo = false;
+      estado.toqueId = null;
+      estado.modoToque = 'parado';
+      estado.planarAtivo = false;
+    });
+  }
 }
 
 // ============================================================
 // LEITURA DE TECLAS
 // ============================================================
-// Fornece as teclas de "ação", juntando teclas alternativas.
-// Por exemplo, "andar para frente" é W ou seta para cima.
 
 export function teclasDeAcao() {
   return {
@@ -97,34 +193,63 @@ export function teclasDeAcao() {
 }
 
 // ============================================================
+// DIREÇÃO DO TOQUE
+// ============================================================
+
+export function direcaoDoToque() {
+  if (!temToque || !estado.toqueAtivo || estado.modoToque !== 'andando') {
+    return { ativo: false };
+  }
+
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
+
+  let dx = (estado.toqueXInicial - cx) / (window.innerWidth / 2);
+  let dy = (estado.toqueYInicial - cy) / (window.innerHeight / 2);
+
+  const comprimento = Math.sqrt(dx * dx + dy * dy);
+  if (comprimento > 1) {
+    dx /= comprimento;
+    dy /= comprimento;
+  }
+
+  return {
+    ativo: true,
+    screenX: dx,
+    screenY: dy
+  };
+}
+
+// ============================================================
+// PLANAR
+// ============================================================
+
+export function estaPlanando() {
+  return estado.planarAtivo === true;
+}
+
+// ============================================================
+// ÂNGULO DA CÂMERA
+// ============================================================
+
+export function anguloDaCamera() {
+  return estado.yawCamera;
+}
+
+// ============================================================
 // ATUALIZAÇÃO DA CÂMERA
 // ============================================================
-// A cada quadro, chamamos esta função passando:
-//   - a câmera (a THREE.Camera)
-//   - a posição do avatar (um THREE.Vector3)
-//   - a rotação Y do avatar (número)
-//   - o delta de tempo (dt)
-//
-// A função faz a câmera seguir o avatar suavemente, sempre
-// atrás dele, com o mouse podendo olhar ao redor.
 
 export function atualizarCamera(camera, posicaoAvatar, rotacaoYAvatar, dt) {
-  // Conta quanto tempo passou desde o último movimento do mouse
   estado.tempoSemMexerMouse += dt;
 
-  // Se o avatar girou, a câmera também gira — mas com atraso
-  // suave. O atraso dá uma sensação melhor do que seguir rígido.
   if (estado.tempoSemMexerMouse > 0.4) {
     let diferenca = rotacaoYAvatar - estado.yawCamera;
-
-    // Normaliza para o intervalo [-π, π] (o caminho mais curto)
     while (diferenca > Math.PI) diferenca -= Math.PI * 2;
     while (diferenca < -Math.PI) diferenca += Math.PI * 2;
-
     estado.yawCamera += diferenca * 0.5 * dt;
   }
 
-  // Calcula a posição da câmera em coordenadas esféricas
   const offsetX = Math.sin(estado.yawCamera) * Math.cos(estado.pitchCamera) * estado.distanciaCamera;
   const offsetZ = Math.cos(estado.yawCamera) * Math.cos(estado.pitchCamera) * estado.distanciaCamera;
   const offsetY = estado.alturaCamera - Math.sin(estado.pitchCamera) * estado.distanciaCamera;
@@ -145,7 +270,6 @@ export function atualizarCamera(camera, posicaoAvatar, rotacaoYAvatar, dt) {
 // ============================================================
 // AJUSTE DE TAMANHO
 // ============================================================
-// Se a janela mudar de tamanho, atualiza a proporção da câmera.
 
 export function configurarRedimensionamento(camera, renderizador) {
   window.addEventListener('resize', () => {
