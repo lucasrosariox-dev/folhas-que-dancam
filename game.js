@@ -31,7 +31,8 @@ import { criarAvatar, animarBalanco } from './js/avatar.js';
 
 import {
   configurarControles, teclasDeAcao,
-  atualizarCamera, configurarRedimensionamento
+  atualizarCamera, configurarRedimensionamento,
+  direcaoDoToque, anguloDaCamera, estaPlanando
 } from './js/controles.js';
 
 import { povoarMundo, estado as estadoPovoamento } from './js/povoamento.js';
@@ -627,32 +628,72 @@ function animar() {
   // Movimento
   if (!painelAberto) {
     const t = teclasDeAcao();
+    const toque = direcaoDoToque();
 
-    if (t.girarEsquerda) avatar.rotation.y += VELOCIDADE_GIRO * dt;
-    if (t.girarDireita)  avatar.rotation.y -= VELOCIDADE_GIRO * dt;
+    if (toque.ativo) {
+      // --- Modo toque: a folha anda na direção do toque ---
+      // A direção do toque está em coordenadas da tela.
+      // Precisamos converter para o mundo, usando o ângulo
+      // da câmera como referência.
 
-    const direcao = new THREE.Vector3(0, 0, -1);
-    direcao.applyQuaternion(avatar.quaternion);
+      const angulo = anguloDaCamera();
 
-    if (t.andarFrente) {
-      avatar.position.x += direcao.x * VELOCIDADE_AVATAR * dt;
-      avatar.position.z += direcao.z * VELOCIDADE_AVATAR * dt;
+      // Frente da câmera no mundo (direção em que ela olha)
+      const frenteX = -Math.sin(angulo);
+      const frenteZ = -Math.cos(angulo);
+
+      // Direita da câmera no mundo
+      const direitaX = Math.cos(angulo);
+      const direitaZ = -Math.sin(angulo);
+
+      // Combina: frente * componente vertical + direita * componente horizontal
+      // Na tela, o eixo Y é invertido (0 no topo), então toqueY negativo = para frente.
+      const dxMundo = direitaX * toque.screenX + frenteX * (-toque.screenY);
+      const dzMundo = direitaZ * toque.screenX + frenteZ * (-toque.screenY);
+
+      const comprimento = Math.sqrt(dxMundo * dxMundo + dzMundo * dzMundo);
+      if (comprimento > 0.001) {
+        const nx = dxMundo / comprimento;
+        const nz = dzMundo / comprimento;
+
+        avatar.position.x += nx * VELOCIDADE_AVATAR * dt;
+        avatar.position.z += nz * VELOCIDADE_AVATAR * dt;
+
+        // A folha vira para onde anda
+        avatar.rotation.y = Math.atan2(nx, nz);
+      }
+    } else {
+      // --- Modo teclado (comportamento original) ---
+      if (t.girarEsquerda) avatar.rotation.y += VELOCIDADE_GIRO * dt;
+      if (t.girarDireita)  avatar.rotation.y -= VELOCIDADE_GIRO * dt;
+
+      const direcao = new THREE.Vector3(0, 0, -1);
+      direcao.applyQuaternion(avatar.quaternion);
+
+      if (t.andarFrente) {
+        avatar.position.x += direcao.x * VELOCIDADE_AVATAR * dt;
+        avatar.position.z += direcao.z * VELOCIDADE_AVATAR * dt;
+      }
+      if (t.andarTras) {
+        avatar.position.x -= direcao.x * VELOCIDADE_AVATAR * dt;
+        avatar.position.z -= direcao.z * VELOCIDADE_AVATAR * dt;
+      }
     }
-    if (t.andarTras) {
-      avatar.position.x -= direcao.x * VELOCIDADE_AVATAR * dt;
-      avatar.position.z -= direcao.z * VELOCIDADE_AVATAR * dt;
-    }
 
-       resolverColisoes(avatar.position);
+      resolverColisoes(avatar.position);
 
-    // Limite sul: a serra é a borda do mundo
     const limiteSul = -650;
     if (avatar.position.z < limiteSul) avatar.position.z = limiteSul;
 
-    const pMar = pesoDoMar(avatar.position.z);
-    enrolarPosicao(avatar.position, pMar);
+    const pMarMov = pesoDoMar(avatar.position.z);
+    enrolarPosicao(avatar.position, pMarMov);
 
-    if (t.planar) alturaVoo += VELOCIDADE_SUBIDA * dt;
+    // Planar e descer continuam funcionando apenas via teclado,
+    // por enquanto. No celular, a folha fica na altura padrão.
+      // Planar: tecla Space (computador) OU duplo toque (celular)
+    const planar = t.planar || estaPlanando();
+
+      if (planar) alturaVoo += VELOCIDADE_SUBIDA * dt;
     else if (t.descer) alturaVoo -= VELOCIDADE_DESCIDA * dt;
     else if (alturaVoo > ALTURA_VOO_PADRAO) alturaVoo -= GRAVIDADE * dt * 0.5;
     alturaVoo = Math.max(ALTURA_VOO_PADRAO, Math.min(ALTURA_VOO_MAXIMA, alturaVoo));
