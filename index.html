@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Folhas Que Dançam</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="jogo"></div>
+
+  <div id="ajuda">
+    WASD ou setas para andar · Mouse para olhar · Espaço para planar · Shift para descer
+  </div>
+
+  <!-- Tela de entrada -->
+  <div id="entrada">
+    <div class="conteudo-entrada">
+      <div class="titulo-entrada">Folhas Que Dançam</div>
+      <div class="subtitulo-entrada">toque para começar</div>
+    </div>
+  </div>
+
+  <!-- Painel de leitura -->
+  <div id="painel" class="escondido">
+    <div class="conteudo-painel">
+      <div id="texto-painel"></div>
+      <button id="botao-fechar">Fechar</button>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./libs/three.module.js",
+        "three/addons/": "./libs/"
+      }
+    }
+  </script>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>

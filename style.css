@@ -1,0 +1,131 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background-color: #0e1512;
+  font-family: Georgia, serif;
+}
+
+#jogo {
+  width: 100vw;
+  height: 100vh;
+}
+
+#ajuda {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #d9c7a3;
+  font-size: 13px;
+  opacity: 0.65;
+  pointer-events: none;
+  user-select: none;
+  text-align: center;
+  letter-spacing: 0.3px;
+  z-index: 10;
+}
+
+/* Tela de entrada */
+#entrada {
+  position: fixed;
+  inset: 0;
+  background-color: #0e1512;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  cursor: pointer;
+  transition: opacity 1.5s ease;
+}
+
+#entrada.escondido {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.conteudo-entrada {
+  text-align: center;
+  user-select: none;
+}
+
+.titulo-entrada {
+  color: #d9c7a3;
+  font-size: 42px;
+  letter-spacing: 4px;
+  margin-bottom: 40px;
+  font-weight: normal;
+  opacity: 0.95;
+}
+
+.subtitulo-entrada {
+  color: #8aa07a;
+  font-size: 16px;
+  letter-spacing: 6px;
+  font-style: italic;
+  opacity: 0.85;
+  animation: pulsa 3s ease-in-out infinite;
+}
+
+@keyframes pulsa {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* Painel de leitura */
+#painel {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(8, 16, 12, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  opacity: 1;
+  transition: opacity 0.6s ease;
+}
+
+#painel.escondido {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.conteudo-painel {
+  max-width: 620px;
+  width: 85%;
+  max-height: 75vh;
+  background-color: rgba(240, 232, 208, 0.06);
+  border: 1px solid rgba(217, 199, 163, 0.25);
+  border-radius: 6px;
+  padding: 40px 50px;
+  color: #e8dfc4;
+  font-size: 18px;
+  line-height: 1.85;
+  letter-spacing: 0.2px;
+  overflow-y: auto;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
+}
+
+#texto-painel {
+  white-space: pre-wrap;
+}
+
+#botao-fechar {
+  margin-top: 32px;
+  background: none;
+  border: 1px solid rgba(217, 199, 163, 0.4);
+  color: #d9c7a3;
+  font-family: Georgia, serif;
+  font-size: 14px;
+  padding: 10px 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
+}
+
+#botao-fechar:hover {
+  background-color: rgba(217, 199, 163, 0.1);
+  border-color: rgba(217, 199, 163, 0.7);
+}
